@@ -9,27 +9,18 @@ import pickle
 import pandas as pd
 import numpy as np
 import xgboost as xgb
+from config import EMB_COLS, GEN_FEATURES, GENERAL_MODEL_NT, ensure_model_dirs, get_feature_training_files
 
-ENHANCERS_BED = 'data/all_regions.bed'
-outdirs = [] # List of directories of feature extraction
-model_dir = 'models'
+feature_files = get_feature_training_files()
+ensure_model_dirs()
 
-enhancers = pd.read_csv(ENHANCERS_BED, sep='\t', names=['chr', 'start', 'end', 'enh_id'], header=None, dtype=str)
-enhancers['coord'] = enhancers['chr'] + ':' + enhancers['start'] + '-' + enhancers['end']
-enhancers.index = enhancers.enh_id
-
-# Feature set
-gen_features = ['maxpwm', 'cons', 'crup', 'crup_mean', 'crup_delta', 'remap', 'tf_exp', 'tf_activity',
-            'tfact_crupcor_coef', 'tfact_crupcor_pval', 'trap', 'atac_min', 'atac_max', 'atac_mean', 'atac_mean_mean',
-            'atac_delta_min', 'atac_delta_max', 'atac_delta_mean', 'tobias_avg', 'delta_tobias_avg', 'tobias_mean_mean', 'tobias_count',
-           'cot_hits_0', 'cot_hits_1', 'cot_hits_2', 'cot_hits_3',
-           'cot_maxpwm_0', 'cot_maxpwm_1', 'cot_maxpwm_2', 'cot_maxpwm_3']
+all_features = EMB_COLS + GEN_FEATURES
 
 training_sets = []
-for outdir in outdirs:
-    with open(f'{outdir}/training_set.pk', 'rb') as f:
+for training_file in feature_files:
+    with open(training_file, 'rb') as f:
         tmp = pickle.load(f)
-        training_sets.append(tmp[gen_features])
+        training_sets.append(tmp[all_features + ['label']])
         
 training_set = pd.concat(training_sets)
 del training_sets
@@ -48,6 +39,6 @@ params = {
 }
 
 general_model = xgb.XGBRegressor(**params)
-general_model.fit(training_set[gen_features], training_set['label'])
-general_model.save_model('{model_dir}/general_model.json')
+general_model.fit(training_set[all_features], training_set['label'])
+general_model.save_model(GENERAL_MODEL_NT)
 

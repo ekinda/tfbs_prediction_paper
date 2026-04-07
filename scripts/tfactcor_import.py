@@ -10,15 +10,16 @@ import pandas as pd
 import numpy as np
 import qvalue_nfusi as qvalue
 from scipy.stats import pearsonr
+from config import ENCODE_TISSUES_FILE, TF_ACTIVITY_FILE, CRUP_FILE
 
 def get_correlation(tf, max_pval=0.001, max_qval=1):
 
     
-    with open('/project/primate_msa/egrn/encode_samples/chosen_encode_tissues.txt', 'r') as f:
+    with open(ENCODE_TISSUES_FILE, 'r') as f:
         tissues = f.read().strip().split()
         
-    tf_act = pd.read_csv('/project/primate_msa/egrn/tf_enh_links/tf_activities_fixed.tsv', sep='\t', index_col=0)
-    crup = pd.read_csv('/project/primate_msa/egrn/enhancers/all_regions_crupscores.bed', sep='\t',
+    tf_act = pd.read_csv(TF_ACTIVITY_FILE, sep='\t', index_col=0)
+    crup = pd.read_csv(CRUP_FILE, sep='\t',
                        names=['chr', 'start', 'end', 'enh_id'] + tissues, header=None, index_col='enh_id').drop(columns=['chr', 'start', 'end']).dropna()
 
     #max_pval = 0.001

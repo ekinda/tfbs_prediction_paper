@@ -3,10 +3,11 @@ import torch
 from Bio import SeqIO
 import time
 import numpy as np
+from config import ENHANCERS_FASTA, EMBEDDINGS_CSV
 
 #### INPUTS ####
-enhancers_fasta = ''
-output = 'data/NT_embeddings.csv'
+enhancers_fasta = ENHANCERS_FASTA
+output = EMBEDDINGS_CSV
 #####
 
 device = torch.device("cuda")

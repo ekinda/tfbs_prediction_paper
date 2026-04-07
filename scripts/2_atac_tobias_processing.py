@@ -10,17 +10,9 @@ import sys
 import os
 import subprocess
 from time import time
-
-#### PROGRAM BINARIES ####
-TOBIAS_BIN = ''
-BWTOOL_BIN = ''
-BEDTOOLS_BIN = ''
+from config import TOBIAS_BIN, BWTOOL_BIN, BEDTOOLS_BIN, HG38, BLACKLIST, ENHANCERS_BED, ENHANCERS_FASTA
 
 #### INPUTS ####
-HG38='' #Human genome in fasta format
-BLACKLIST = '' # Human genome blacklist file
-ENHANCERS_BED = 'data/all_regions.bed' # Bed file of selected enhancers/genomic regions
-ENHANCERS_FASTA = '' # Fasta file of selected enhancers/genomic regions
 
 inputs = {
     'tissue':sys.argv[1],

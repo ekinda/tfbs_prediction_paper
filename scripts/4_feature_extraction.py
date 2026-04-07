@@ -21,22 +21,34 @@ import multiprocessing as mp
 from functools import partial 
 from time import time
 from io import StringIO
-
-#### PROGRAM BINARIES ####
-TRAP_BIN=''
-MOODS_BIN= ''
-TOBIAS_BIN = ''
-BWTOOL_BIN = ''
-BEDTOOLS_BIN = ''
-
-#### INPUTS ####
-HG38='' #Human genome in fasta format
-BLACKLIST = '' # Human genome blacklist file
-ENHANCERS_BED = 'data/all_regions.bed' # Bed file of selected enhancers/genomic regions
-ENHANCERS_FASTA = '' # Fasta file of selected enhancers/genomic regions
-TRAP_BG = 'data/trap_background.GEVparams'
-MOTIF_FILE = '' # Transfac TFBS motifs in fasta format
-MOTIF_DIR = ''  # Directory of Transfac TFBS motifs in pfm format
+from config import (
+    TRAP_BIN,
+    MOODS_BIN,
+    TOBIAS_BIN,
+    BWTOOL_BIN,
+    BEDTOOLS_BIN,
+    HG38,
+    BLACKLIST,
+    ENHANCERS_BED,
+    ENHANCERS_FASTA,
+    TRAP_BG,
+    MOTIF_FILE,
+    MOTIF_DIR,
+    GENE_TO_TRANSFAC_FILE,
+    ENCODE_TISSUES_FILE,
+    BULK_MRNA_FILE,
+    TF_ACTIVITY_FILE,
+    CONS_FILE,
+    REMAP_FILE,
+    CRUP_FILE,
+    EMBEDDINGS_CSV,
+    GLOBAL_ATAC_MEAN,
+    GLOBAL_ATAC_QN_MIN,
+    GLOBAL_ATAC_QN_MAX,
+    GLOBAL_ATAC_QN_MEAN,
+    GLOBAL_ATAC_QN_MEAN_TABLE,
+    GLOBAL_TOBIAS_MEAN,
+)
 
 inputs = {
     'tissue':sys.argv[1],
@@ -157,21 +169,26 @@ def atac_matrices(inputs, outdir):
     atac = tmp[['min','max','mean']].copy().fillna(0)
     
     # ATAC mean mean
-    atac_mean_mean = pd.read_csv(f'{outdir}/atac_mean_mean.tsv', sep='\t', header=None, names=['enh_id', 'score'])
+    atac_mean_mean = pd.read_csv(GLOBAL_ATAC_MEAN, sep='\t', header=None, names=['enh_id', 'score'])
     atac_mean_mean.index = atac_mean_mean.enh_id
     atac_mean_mean = atac_mean_mean['score']
 
     # ATAC quantile normalization
     atac_qnorm = pd.DataFrame()
     for typ in ['min', 'mean', 'max']:
-        qn_values = np.loadtxt(f'{outdir}/atac_{typ}_qn_values.tsv')
+        if typ == 'min':
+            qn_values = np.loadtxt(GLOBAL_ATAC_QN_MIN)
+        elif typ == 'max':
+            qn_values = np.loadtxt(GLOBAL_ATAC_QN_MAX)
+        else:
+            qn_values = np.loadtxt(GLOBAL_ATAC_QN_MEAN)
         atac_qnorm[typ] = qnorm.quantile_normalize(atac[[typ]], target=qn_values)
         atac_qnorm[f'delta_{typ}'] = atac_qnorm[typ] - atac_mean_mean
         
     return atac_qnorm, atac_mean_mean
 
 def cotracte_regions(inputs, outdir, enhancers, atac_qnorm, n=5000):
-    atac_qnorm_all = pd.read_csv(f'{outdir}/atac_qnorm_mean.tsv', sep='\t', index_col='enh_id')
+    atac_qnorm_all = pd.read_csv(GLOBAL_ATAC_QN_MEAN_TABLE, sep='\t', index_col='enh_id')
     atac_qnorm_all = pd.concat([atac_qnorm_all, atac_qnorm['mean']], axis=1)
     atac_qnorm_delta = atac_qnorm_all.sub(atac_qnorm_all.mean(axis=1), axis=0)
     ubiq = atac_qnorm_all.loc[(atac_qnorm_all > 5).sum(axis=1) == 12].head(n)
@@ -356,7 +373,7 @@ def construct_datamatrix(inputs, outdir, enh_ids, atac_qnorm, atac_mean_mean, en
     del avg, tobias_summaries
 
     # TOBIAS Deltas
-    tobias_mean_mean = pd.read_csv(f'{outdir}/tobias_mean_mean.tsv', sep='\t', header=None, names=['enh_id', 'score'])
+    tobias_mean_mean = pd.read_csv(GLOBAL_TOBIAS_MEAN, sep='\t', header=None, names=['enh_id', 'score'])
     tobias_mean_mean.index = tobias_mean_mean.enh_id
     tobias_mean_mean = tobias_mean_mean['score']
     
@@ -367,9 +384,12 @@ def construct_datamatrix(inputs, outdir, enh_ids, atac_qnorm, atac_mean_mean, en
     tobias_counts = pd.concat([enhancers,tobias_counts], axis=1)
     
     # Construct final set, start with transformer embeddings
-    data = pd.read_csv(ENHANCERS_BED, sep='\t', names=['chrom', 'start', 'end', 'enh_id'])
+    data = pd.read_csv(EMBEDDINGS_CSV, sep=',')
     data.index = data.enh_id
-    data.drop(['enh_id',], axis=1, inplace=True)
+    data.drop(['Unnamed: 0', 'chr', 'start', 'end', 'enh_id', 'coord'], axis=1, inplace=True, errors='ignore')
+    emb_cols = [f'emb_{i}' for i in range(1024)]
+    data.columns = emb_cols
+    data = data.loc[enh_ids]
     
     tissue = inputs['tissue']
     tf = inputs['tf']
@@ -437,7 +457,7 @@ os.makedirs(outdir, exist_ok=True)
 
 # 1. General data
 gene_to_transfac = {}
-gene_to_transfacfile = 'data/gene_symbol_to_transfac.txt'
+gene_to_transfacfile = GENE_TO_TRANSFAC_FILE
 with open(gene_to_transfacfile, 'r') as f:
     for line in f:
         gene, transfac = line.strip().split()
@@ -445,17 +465,17 @@ with open(gene_to_transfacfile, 'r') as f:
         
 transfac_to_gene = {f'V${val}':key for (key,val) in gene_to_transfac.items()}
 
-with open('data/chosen_encode_tissues.txt', 'r') as f:
+with open(ENCODE_TISSUES_FILE, 'r') as f:
     encode_tissues = f.read().strip().split()
 
-bulk_mrna = pd.read_csv('data/tfs_meantpm.tsv', sep='\t', index_col='gene_symbol')
+bulk_mrna = pd.read_csv(BULK_MRNA_FILE, sep='\t', index_col='gene_symbol')
 bulk_mrna = bulk_mrna[~bulk_mrna.index.duplicated(keep='first')]
 bulk_mrna.drop('gene_id', axis=1, inplace=True)
 bulk_mrna.fillna(0, inplace=True)
 bulk_mrna = np.log1p(bulk_mrna)
 bulk_mrna = bulk_mrna.loc[bulk_mrna.sum(axis=1) > 1,:]
 
-tf_act = pd.read_csv('data/tf_activities_fixed.tsv', sep='\t', index_col=0)
+tf_act = pd.read_csv(TF_ACTIVITY_FILE, sep='\t', index_col=0)
 tf_act = tf_act*10000
 tf_act = pd.DataFrame(StandardScaler().fit_transform(tf_act), index=tf_act.index, columns=tf_act.columns) # Standardization
 
@@ -463,19 +483,19 @@ enhancers = pd.read_csv(ENHANCERS_BED, sep='\t', names=['chr', 'start', 'end', '
 enhancers['coord'] = enhancers['chr'] + ':' + enhancers['start'] + '-' + enhancers['end']
 enhancers.index = enhancers.enh_id
 
-cons = pd.read_csv('data/all_regions_phastcons.tsv', sep='\t')
+cons = pd.read_csv(CONS_FILE, sep='\t')
 cons['coord'] = cons['#chrom'] + ':' + cons['start'].astype(str) + '-' + cons['end'].astype(str)
 cons = cons.merge(enhancers, on='coord', how='right')
 cons.index = cons.enh_id
 cons = cons.loc[enhancers.index, 'mean'].fillna(0)
 
-remap = pd.read_csv('data/all_regions_remap.tsv', sep='\t')
+remap = pd.read_csv(REMAP_FILE, sep='\t')
 remap['coord'] = remap['#chrom'] + ':' + remap['start'].astype(str) + '-' + remap['end'].astype(str)
 remap = remap.merge(enhancers, on='coord', how='right')
 remap.index = remap.enh_id
 remap = remap.loc[enhancers.index, 'mean'].fillna(0)
 
-crup = pd.read_csv('data/all_regions_crupscores.bed', sep='\t', names=['chr', 'start', 'end', 'enh_id'] + encode_tissues,
+crup = pd.read_csv(CRUP_FILE, sep='\t', names=['chr', 'start', 'end', 'enh_id'] + encode_tissues,
                     header=None, index_col='enh_id').drop(columns=['chr', 'start', 'end']).fillna(0)
 crup_mean = crup.mean(axis=1)
 

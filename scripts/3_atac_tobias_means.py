@@ -9,10 +9,19 @@ import pandas as pd
 import numpy as np
 import qnorm
 import glob
+from pathlib import Path
+from config import (
+    ENHANCERS_BED,
+    GLOBAL_ATAC_MEAN,
+    GLOBAL_ATAC_QN_MIN,
+    GLOBAL_ATAC_QN_MAX,
+    GLOBAL_ATAC_QN_MEAN,
+    GLOBAL_ATAC_QN_MEAN_TABLE,
+    GLOBAL_TOBIAS_MEAN,
+)
 
-outdir = ''
+outdir = str(Path(ENHANCERS_BED).resolve().parents[1] / 'atac')
 tissues = [] # List of tissues
-ENHANCERS_BED = ''
 
 enhancers = pd.read_csv(ENHANCERS_BED, sep='\t', names=['chr', 'start', 'end', 'enh_id'], header=None, dtype=str)
 enhancers['coord'] = enhancers['chr'] + ':' + enhancers['start'] + '-' + enhancers['end']
@@ -30,7 +39,8 @@ tobias_mean_mean['score'] = avg
 tobias_mean_mean = tobias_mean_mean.merge(enhancers, on='coord')
 tobias_mean_mean.index = tobias_mean_mean.enh_id
 tobias_mean_mean = tobias_mean_mean[['coord', 'score']]
-tobias_mean_mean.to_csv(f'{outdir}/tobias_mean_mean.tsv', sep='\t')
+Path(GLOBAL_TOBIAS_MEAN).parent.mkdir(parents=True, exist_ok=True)
+tobias_mean_mean.to_csv(GLOBAL_TOBIAS_MEAN, sep='\t', header=False)
 
 # ATAC-seq quantile normalization
 atac = {}
@@ -48,13 +58,19 @@ for typ in ['min', 'max', 'mean']:
     df = pd.concat([b[typ] for b in atac.values()], axis=1)
     df.columns = atac.keys()
     atac_qnorm[typ] = qnorm.quantile_normalize(df)
-    atac_qnorm[typ].iloc[:,0].to_csv(f'{outdir}/atac_{typ}_qn_values.tsv', sep='\t', index=False, header=False)
+    target = {
+        'min': GLOBAL_ATAC_QN_MIN,
+        'max': GLOBAL_ATAC_QN_MAX,
+        'mean': GLOBAL_ATAC_QN_MEAN,
+    }[typ]
+    Path(target).parent.mkdir(parents=True, exist_ok=True)
+    atac_qnorm[typ].iloc[:,0].to_csv(target, sep='\t', index=False, header=False)
 
-atac_qnorm['mean'].to_csv(f'{outdir}/atac_qnorm_mean.tsv', sep='\t', index=True, header=True)
+atac_qnorm['mean'].to_csv(GLOBAL_ATAC_QN_MEAN_TABLE, sep='\t', index=True, header=True)
 
 # Mean ATAC signal across all cells
 atac_mean_mean = atac_qnorm['mean'].mean(axis=1)
-atac_mean_mean.to_csv(f'{outdir}/atac_mean_mean.tsv', sep='\t')
+atac_mean_mean.to_csv(GLOBAL_ATAC_MEAN, sep='\t', header=False)
 
 
 
