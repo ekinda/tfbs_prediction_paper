@@ -5,7 +5,7 @@ Code and data layout for reproducing model outputs and figures from:
 
 ## Data layout (required)
 
-Download the Zenodo tarball(s), then unpack into [data](data) so that these files exist:
+Download the [Zenodo tarball](https://zenodo.org/records/19457863), then unpack into [data](data) so that these files exist:
 
 - [data/training_data/training_sets.pk](data/training_data/training_sets.pk)
 - [data/training_data/embeddings.csv](data/training_data/embeddings.csv)
