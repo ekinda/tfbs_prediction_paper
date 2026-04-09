@@ -220,20 +220,3 @@ python scripts/7_ensemble_models.py --device cuda
 ```
 
 Only run scripts 1-4 if you need to regenerate features from raw FASTA/ATAC/ChIP resources.
-
-## Prediction table artifact for figure reproduction
-
-Figure reproduction is driven by:
-
-- [data/all_features_predictions_leaderboard_test.parquet](data/all_features_predictions_leaderboard_test.parquet)
-
-This table is expected to contain final-round + leaderboard rows, features, and model prediction columns including:
-
-- general model
-- tf only
-- tf tuned
-- tf only (ensemble)
-- tf tuned (ensemble)
-- tf transformer
-
-This artifact is then used by scripts/notebooks under [figure_scripts](figure_scripts).
